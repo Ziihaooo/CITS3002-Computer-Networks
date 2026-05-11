@@ -12,6 +12,7 @@ Topology:
 
 # ---------------------------------------------------------------------------
 # ip addresses
+# Spec pdf definition of the topology and addressing scheme
 # ---------------------------------------------------------------------------
 
 HOST_A_IP = "10.0.1.10"
@@ -24,6 +25,7 @@ NETWORK_2 = ("10.0.2.0", 24)
 
 # ---------------------------------------------------------------------------
 # mac addresses
+# Spec pdf definition of the topology and addressing scheme
 # ---------------------------------------------------------------------------
 
 HOST_A_MAC = "AA:AA:AA:AA:AA:AA"
@@ -33,10 +35,11 @@ HOST_B_MAC = "DD:DD:DD:DD:DD:DD"
 
 # ---------------------------------------------------------------------------
 # interface names
+# spec pdf log lines refer to interfaces by name, so we define constants here to match those names
 # ---------------------------------------------------------------------------
 
 # hosts only have one interface, r1 has two
-# r1 interface names must match the spec log lines exactly
+# r1 interface names must match the spec pdf log lines exactly
 HOST_IFACE = "eth0"
 R1_IFACE_1 = "Interface 1"
 R1_IFACE_2 = "Interface 2"
@@ -47,7 +50,7 @@ R1_IFACE_2 = "Interface 2"
 # each entry: (network, prefix_length, next_hop_ip, outgoing_interface)
 # if next_hop is None then the network is directly connected, so the l3
 # code should set next_hop = the packet's destination ip at lookup time
-# (spec: "next-hop IP is set to the destination IP itself")
+# (spec pdf: "next-hop IP is set to the destination IP itself")
 
 HOST_A_ROUTING_TABLE = [
     ("10.0.1.0", 24, None,       HOST_IFACE),  # directly connected
@@ -71,19 +74,19 @@ R1_ROUTING_TABLE = [
 # r1 has one per interface because each interface is on its own subnet
 
 HOST_A_MAC_TABLE = {
-    R1_IF1_IP: R1_IF1_MAC,
+    R1_IF1_IP: R1_IF1_MAC, # next-hop for host A is r1 on iface 1 so map r1's iface 1 ip to its mac
 }
 
 HOST_B_MAC_TABLE = {
-    R1_IF2_IP: R1_IF2_MAC,
+    R1_IF2_IP: R1_IF2_MAC, # next-hop for host B is r1 on iface 2S so map r1's iface 2 ip to its mac
 }
 
 R1_MAC_TABLE_IF1 = {
-    HOST_A_IP: HOST_A_MAC,
+    HOST_A_IP: HOST_A_MAC, # next-hop for r1 on iface 1 is host A so map host A's ip to its mac
 }
 
 R1_MAC_TABLE_IF2 = {
-    HOST_B_IP: HOST_B_MAC,
+    HOST_B_IP: HOST_B_MAC, # next-hop for r1 on iface 2 is host B so map host B's ip to its mac
 }
 
 # ---------------------------------------------------------------------------
@@ -101,6 +104,6 @@ L4_TYPE_DATA = 0 # indicates a data segment (rdt2.2)
 L4_TYPE_ACK = 1  # indicates an ACK segment (rdt2.2)
 MAX_SEGMENT_DATA = 500  # max app data per segment in bytes
 
-# default ports (matches the spec example trace)
+# default ports (matches the spec pdf example trace)
 DEFAULT_SRC_PORT = 5000  # arbitrary source port for segments sent by hosts
 DEFAULT_DST_PORT = 80    # arbitrary destination port for segments sent by hosts, just for logging
