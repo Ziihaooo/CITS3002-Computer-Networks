@@ -41,3 +41,14 @@ class Packet:
 # ---------------------------------------------------------------------------
 # Layer 4: Transport (UDP-like Segment with ACK — rdt2.2)
 # ---------------------------------------------------------------------------
+
+# UDP-like segment: ports + length + checksum + rdt2.2 type/seq + app data.
+class Segment:
+    def __init__(self, src_port, dst_port, length, checksum, seg_type, seq_num, data):
+        self.src_port = src_port    # source port (e.g. 5000)
+        self.dst_port = dst_port    # destination port (e.g. 80)
+        self.length = length        # header + data size in bytes
+        self.checksum = checksum    # computed for error detection
+        self.seg_type = seg_type    # 0 = DATA, 1 = ACK
+        self.seq_num = seq_num      # 0 or 1 (alternating bit)
+        self.data = data            # application bytes (empty for ACK)
