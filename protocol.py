@@ -27,6 +27,16 @@ class Frame:
 # Layer 3: Network (IP-like Packet)
 # ---------------------------------------------------------------------------
 
+# IP-like packet: source/destination IP + TTL + protocol + L4 segment payload.
+class Packet:
+    def __init__(self, src_ip, dst_ip, ttl, protocol, total_length, payload):
+        self.src_ip = src_ip                # source IP address (string)
+        self.dst_ip = dst_ip                # destination IP address (string)
+        self.ttl = ttl                      # decremented at each router
+        self.protocol = protocol            # 17 = UDP
+        self.total_length = total_length    # header + payload size in bytes
+        self.payload = payload              # the Layer 4 segment
+
 
 # ---------------------------------------------------------------------------
 # Layer 4: Transport (UDP-like Segment with ACK — rdt2.2)
