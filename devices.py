@@ -1,18 +1,21 @@
-"""Network device implementations: Host and Router.
+"""Host and Router classes.
 
-Each device exposes Layer 2, Layer 3, and (for Hosts) Layer 4 behavior.
-A shared logging helper at the top of this module is used by every
-layer to keep the output format consistent across the simulator.
-
-Sections:
-    - log helper (shared across all layers)
-    - Host class (runs L2, L3, L4)
-    - Router class (runs L2, L3 only)
+Host runs L2/L3/L4, Router runs L2/L3 only.
+Shared log helper at the top so every layer prints in the same format.
 """
 
 # ---------------------------------------------------------------------------
-# Shared logging helper
+# logging helper
 # ---------------------------------------------------------------------------
+
+# prints one log line in the format the spec expects
+def log(device, layer, message):
+    print(f"{device}: {layer}: {message}")
+
+
+# blank line between sections so the output is easier to read
+def log_blank():
+    print()
 
 
 # ---------------------------------------------------------------------------
