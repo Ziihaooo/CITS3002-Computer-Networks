@@ -35,29 +35,24 @@ class Host:
         self.peer = None                    # the other end (host or router) of the link, set by main.py when building the topology
         self.peer_iface = None              # which interface we arrive on at the peer
 
-    # L3 calls this when it wants to send a packet out
-    def send_frame(self, packet, next_hop_ip):
-        log(self.name, "Layer 2", "Packet received from Network Layer")
-        dst_mac = self.mac_table[next_hop_ip]
-        log(self.name, "Layer 2", f"Destination MAC lookup for next-hop IP ({next_hop_ip}) -> {dst_mac}")
-        frame = Frame(dst_mac, self.mac, ETH_TYPE_IPV4, packet)
-        log(self.name, "Layer 2", f"Frame created: SRC_MAC={self.mac}, DST_MAC={dst_mac}")
-        log(self.name, "Layer 2", "Frame sent")
-        # transmit by calling into the peer (in-process, no real network)
-        self.peer.receive_frame(frame, ingress_iface=self.peer_iface)
 
-    # peer calls this when a frame arrives on the wire
-    def receive_frame(self, frame, ingress_iface=None):
-        log(self.name, "Layer 2", "Frame received")
-        log(self.name, "Layer 2", f"Source MAC learned: {frame.src_mac}")
-        log(self.name, "Layer 2", "Packet delivered to Network Layer")
-        self.receive_packet(frame.payload)
-
-    # stub - partner fills this in for #7 (layer 3)
-    def receive_packet(self, packet):
-        pass
 
 
 # ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
+
+class Router:
+    def __init__(self, name, if1, if2, routing_table):
+        self.name = name                    # for logging, e.g. "Router R1"
+        # each interface is a dict with keys: ip, mac, mac_table (next-hop ip -> mac).
+        # peer and peer_iface get wired up in main.py when the topology is built.
+        # Router need this to look up info when forwarding packets out each interface.
+        # if1 and if2 will have the info ip, mac, and mac_table for the directly connected subnet on that interface.
+        self.interfaces = {
+            "Interface 1": dict(if1, peer=None, peer_iface=None),
+            "Interface 2": dict(if2, peer=None, peer_iface=None),
+        }
+        self.routing_table = routing_table  # routing table for L3 lookups, used by L3 to find the outgoing interface and next-hop ip for a given destination ip
+        self.learning_table = {}            # learn incoming source MAC + which interface it came from
+ 
