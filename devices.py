@@ -14,6 +14,15 @@ Sections:
 # Shared logging helper
 # ---------------------------------------------------------------------------
 
+# Print a single layer-event log line in the format required by the spec.
+def log(device, layer, message):
+    print(f"{device}: {layer}: {message}")
+
+
+# Print an empty line to visually separate log groups.
+def log_blank():
+    print()
+
 
 # ---------------------------------------------------------------------------
 # Host
