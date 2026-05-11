@@ -14,6 +14,14 @@ Sections:
 # Layer 2: Data Link (Ethernet-like Frame)
 # ---------------------------------------------------------------------------
 
+# Ethernet-like frame: MAC addressing + type field + L3 packet payload.
+class Frame:
+    def __init__(self, dst_mac, src_mac, eth_type, payload):
+        self.dst_mac = dst_mac      # destination MAC address (string)
+        self.src_mac = src_mac      # source MAC address (string)
+        self.eth_type = eth_type    # 0x0800 for IPv4
+        self.payload = payload      # the Layer 3 packet
+
 
 # ---------------------------------------------------------------------------
 # Layer 3: Network (IP-like Packet)
