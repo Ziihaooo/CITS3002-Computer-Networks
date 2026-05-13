@@ -4,17 +4,13 @@ Host runs L2/L3/L4, Router runs L2/L3 only.
 Shared log helper at the top so every layer prints in the same format.
 """
 
-from protocol import Frame
-from config import ETH_TYPE_IPV4
+from protocol import Frame, Packet
+from config import ETH_TYPE_IPV4, INITIAL_TTL, IP_PROTO_UDP
 
 # logging helper
 # prints one log line in the format the spec pdf expects
 def log(device, layer, message):
     print(f"{device}: {layer}: {message}")
-
-# blank line between sections so the output is easier to read
-def log_blank():
-    print()
 
 # routing helpers (used by L3 on hosts and routers)
 # check if ip belongs to the given network 
@@ -48,6 +44,20 @@ class Host:
         log(self.name, "Layer 2", f"Source MAC learned: {frame.src_mac}") # log the source mac
         log(self.name, "Layer 2", "Packet delivered to Network Layer") # to L3 of this host
         self.receive_packet(frame.payload) # Call L3 receive_packet with the frame's payload, which is the L3 packet
+
+    # called by L4 to send a segment out: wrap in a packet, do routing, hand to L2
+    def send_packet(self, segment, dst_ip):
+        src_ip = self.ip
+        ttl = INITIAL_TTL # initial TTL for outbound packets from hosts
+        log(self.name, "Layer 3", f"Segment received from Transport Layer: SRC_IP={src_ip}, DST_IP={dst_ip}, TTL={ttl}") # L4 of this host to L3 of this host
+        log(self.name, "Layer 3", f"Destination IP read: {dst_ip}") # read the destination ip from the segment to start routing
+        log(self.name, "Layer 3", "Routing table lookup performed") # look up the routing table to find next-hop and out-iface
+        next_hop_ip, _out_iface = routing_lookup(self.routing_table, dst_ip) # hosts only have one interface so out_iface is not needed for send_frame
+        log(self.name, "Layer 3", f"Next-hop IP determined: {next_hop_ip}") # log the determined next-hop ip
+        log(self.name, "Layer 3", "Outgoing interface selected") # log the outgoing interface (just one for hosts)
+        packet = Packet(src_ip, dst_ip, ttl, IP_PROTO_UDP, 12 + segment.length, segment) # build the packet wrapping the segment from L4 and 12 bytes for the L3 header
+        log(self.name, "Layer 3", "Packet forwarded to Data Link Layer") # to L2 of this host
+        self.send_frame(packet, next_hop_ip) # Call L2 send_frame with the built packet and the next-hop ip
 
     # called when need to send a frame to other peer
     def send_frame(self, packet, next_hop_ip):
