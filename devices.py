@@ -46,6 +46,7 @@ class Host:
         log(self.name, "Layer 2", "Frame received") # L2 of peer to L2 of this host
         log(self.name, "Layer 2", f"Source MAC learned: {frame.src_mac}") # log the source mac
         log(self.name, "Layer 2", "Packet delivered to Network Layer") # to L3 of this host
+        print() # blank line between L2 and L3 sections (matches spec example)
         self.receive_packet(frame.payload) # Call L3 receive_packet with the frame's payload, which is the L3 packet
 
     # called when a packet is received from L2 and delivered to L3
@@ -55,6 +56,7 @@ class Host:
         if packet.dst_ip == self.ip: # if dst ip is this host's own ip then it's local delivery
             log(self.name, "Layer 3", "Packet identified as local delivery") # log the local delivery decision
             log(self.name, "Layer 3", "Segment delivered to Transport Layer") # to L4 of this host
+            print() # blank line between L3 and L4 sections (matches spec example)
             self.receive_segment(packet.payload, packet.src_ip) # Call L4 receive_segment with the packet's payload, which is the L4 segment, and the sender's IP for the ACK return
 
     # called by main.py to send a message to a destination host
@@ -71,6 +73,7 @@ class Host:
                 log(self.name, "Layer 4", "Checksum computed") # log the checksum computation
                 log(self.name, "Layer 4", f"Segment created by adding transport layer header (DATA, seq={seq}) (encapsulation)") # log the DATA segment creation
                 log(self.name, "Layer 4", "Segment sent to Network Layer") # to L3 of this host
+                print() # blank line between L4 and L3 sections (matches spec example)
                 self.send_packet(seg, dst_ip) # send the segment, by the time this returns the ACK has been processed (synchronous)
                 if self.last_ack_seq == seq: # correct ACK received, this chunk is done
                     break
@@ -93,6 +96,7 @@ class Host:
             ack.checksum = compute_checksum(ack.src_port, ack.dst_port, ack.length, ack.seg_type, ack.seq_num, ack.data) # compute the checksum for the ACK
             log(self.name, "Layer 4", f"Segment created by adding transport layer header (ACK, seq={ack.seq_num})") # log the ACK creation
             log(self.name, "Layer 4", "Segment sent to Network Layer") # to L3 of this host
+            print() # blank line between L4 and L3 sections (matches spec example)
             self.send_packet(ack, src_ip) # send the ACK back to the original sender
         elif segment.seg_type == L4_TYPE_ACK: # incoming ACK segment from peer
             log(self.name, "Layer 4", f"ACK received: seq={segment.seq_num}") # log the ACK with its seq
@@ -110,6 +114,7 @@ class Host:
         log(self.name, "Layer 3", "Outgoing interface selected") # log the outgoing interface (just one for hosts)
         packet = Packet(src_ip, dst_ip, ttl, IP_PROTO_UDP, 12 + segment.length, segment) # build the packet wrapping the segment from L4 and 12 bytes for the L3 header
         log(self.name, "Layer 3", "Packet forwarded to Data Link Layer") # to L2 of this host
+        print() # blank line between L3 and L2 sections (matches spec example)
         self.send_frame(packet, next_hop_ip) # Call L2 send_frame with the built packet and the next-hop ip
 
     # called by L3 when need to send a packet out: do L2 dst mac lookup, build frame, and call peer's L2 receive_frame
@@ -120,6 +125,7 @@ class Host:
         frame = Frame(dst_mac, self.mac, ETH_TYPE_IPV4, packet) # create a frame with the given packet as payload, and the looked up dst mac and this host's mac as src mac
         log(self.name, "Layer 2", f"Frame created: SRC_MAC={self.mac}, DST_MAC={dst_mac}") # log the creation of the frame with src and dst mac
         log(self.name, "Layer 2", "Frame sent") # to L2 of peer
+        print() # blank line between sending host's L2 and receiving peer's L2 (matches spec example)
         self.peer.receive_frame(frame, ingress_iface=self.peer_iface) # Call the L2 of the peer with the created frame, and specify which interface we arrive on at the peer
 
 # Router
@@ -143,6 +149,7 @@ class Router:
         self.learning_table[frame.src_mac] = ingress_iface # learn the source mac and which interface it came from (dynamic mac learning)
         log(self.name, "Layer 2", f"Source MAC learned: {frame.src_mac} on {ingress_iface}") # log the learned source mac
         log(self.name, "Layer 2", "Packet delivered to Network Layer") # to L3 of this router
+        print() # blank line between L2 and L3 sections (matches spec example)
         self.receive_packet(frame.payload, ingress_iface) # Call L3 receive_packet with the frame's payload, which is the L3 packet, and the ingress interface
 
     # called when a packet is received from L2 and delivered to L3, with the ingress interface specified for routing decisions
@@ -160,6 +167,7 @@ class Router:
         log(self.name, "Layer 3", f"Next-hop IP determined: {next_hop_ip}") # log the determined next-hop ip
         log(self.name, "Layer 3", f"Outgoing interface selected ({out_iface})") # log the outgoing interface (router has two)
         log(self.name, "Layer 3", "Packet forwarded to Data Link Layer") # to L2 of this router
+        print() # blank line between L3 and L2 sections (matches spec example)
         self.send_frame(packet, next_hop_ip, out_iface) # Call L2 send_frame with the packet, next-hop ip, and outgoing interface
 
     # called when need to forward a frame out a specific interface to other peer
@@ -171,4 +179,5 @@ class Router:
         frame = Frame(dst_mac, iface["mac"], ETH_TYPE_IPV4, packet) # create a frame with the given packet as payload, looked up dst mac, and this interface's mac as src mac
         log(self.name, "Layer 2", f"Frame created: SRC_MAC={iface['mac']}, DST_MAC={dst_mac}") # log the creation of the frame with src and dst mac
         log(self.name, "Layer 2", f"Frame forwarded on {out_iface}") # to L2 of peer via the specified outgoing interface
+        print() # blank line between this router's L2 and the receiving peer's L2 (matches spec example)
         iface["peer"].receive_frame(frame, ingress_iface=iface["peer_iface"]) # Call the L2 of the peer with the created frame, and specify which interface we arrive on at the peer
