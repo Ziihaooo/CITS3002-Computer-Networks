@@ -101,6 +101,23 @@ class Router:
         log(self.name, "Layer 2", "Packet delivered to Network Layer") # to L3 of this router
         self.receive_packet(frame.payload, ingress_iface) # Call L3 receive_packet with the frame's payload and the ingress interface
 
+    # called when a packet is received from L2 and delivered to L3, with the ingress interface specified for routing decisions
+    def receive_packet(self, packet, ingress_iface):
+        log(self.name, "Layer 3", f"Packet received from Data Link Layer: SRC_IP={packet.src_ip}, DST_IP={packet.dst_ip}, TTL={packet.ttl}") # L2 of this router to L3 of this router
+        log(self.name, "Layer 3", f"Destination IP read: {packet.dst_ip}") # read the dst ip from the packet to start routing
+        old_ttl = packet.ttl # remember the old TTL for the decrement log line
+        packet.ttl -= 1 # router decrements TTL by 1 at every hop (per spec)
+        log(self.name, "Layer 3", f"TTL decremented: {old_ttl} → {packet.ttl}") # log the TTL decrement using the unicode arrow
+        if packet.ttl == 0: # if TTL reaches 0 then drop the packet (per spec)
+            log(self.name, "Layer 3", "Packet dropped due to TTL expiry") # log the drop event
+            return # don't forward the packet any further
+        log(self.name, "Layer 3", "Routing table lookup performed") # look up the routing table to find next-hop and out-iface
+        next_hop_ip, out_iface = routing_lookup(self.routing_table, packet.dst_ip) # find next-hop ip and outgoing interface for the dst ip
+        log(self.name, "Layer 3", f"Next-hop IP determined: {next_hop_ip}") # log the determined next-hop ip
+        log(self.name, "Layer 3", f"Outgoing interface selected ({out_iface})") # log the outgoing interface (router has two)
+        log(self.name, "Layer 3", "Packet forwarded to Data Link Layer") # to L2 of this router
+        self.send_frame(packet, next_hop_ip, out_iface) # Call L2 send_frame with the packet, next-hop ip, and outgoing interface
+
     # called when need to forward a frame out a specific interface to other peer
     def send_frame(self, packet, next_hop_ip, out_iface):
         iface = self.interfaces[out_iface] # look up the interface info using the out_iface name
