@@ -44,3 +44,14 @@ class Segment:
         self.seg_type = seg_type    # Type (1 byte) - 0 for data, 1 for ACK
         self.seq_num = seq_num      # Sequence number (1 byte) - for rdt2.2, alternates between 0 and 1
         self.data = data            # Data (variable length) - the actual message payload for data segments, empty for ACKs
+
+
+# simple 16-bit checksum over all the segment fields and data bytes (kept to 2 bytes with & 0xFFFF)
+def compute_checksum(src_port, dst_port, length, seg_type, seq_num, data):
+    return (src_port + dst_port + length + seg_type + seq_num + sum(data)) & 0xFFFF
+
+# recompute and compare against the value stored in the segment header
+def verify_checksum(segment):
+    expected = compute_checksum(segment.src_port, segment.dst_port, segment.length,
+                                segment.seg_type, segment.seq_num, segment.data)
+    return expected == segment.checksum
