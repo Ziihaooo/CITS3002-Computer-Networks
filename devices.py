@@ -45,6 +45,15 @@ class Host:
         log(self.name, "Layer 2", "Packet delivered to Network Layer") # to L3 of this host
         self.receive_packet(frame.payload) # Call L3 receive_packet with the frame's payload, which is the L3 packet
 
+    # called when a packet is received from L2 and delivered to L3
+    def receive_packet(self, packet):
+        log(self.name, "Layer 3", f"Packet received from Data Link Layer: SRC_IP={packet.src_ip}, DST_IP={packet.dst_ip}, TTL={packet.ttl}") # L2 of this host to L3 of this host
+        log(self.name, "Layer 3", f"Destination IP read: {packet.dst_ip}") # read the dst ip from the packet to decide what to do
+        if packet.dst_ip == self.ip: # if dst ip is this host's own ip then it's local delivery
+            log(self.name, "Layer 3", "Packet identified as local delivery") # log the local delivery decision
+            log(self.name, "Layer 3", "Segment delivered to Transport Layer") # to L4 of this host
+            self.receive_segment(packet.payload) # Call L4 receive_segment with the packet's payload (the L4 segment)
+
     # called by L4 to send a segment out: wrap in a packet, do routing, hand to L2
     def send_packet(self, segment, dst_ip):
         src_ip = self.ip
@@ -59,7 +68,7 @@ class Host:
         log(self.name, "Layer 3", "Packet forwarded to Data Link Layer") # to L2 of this host
         self.send_frame(packet, next_hop_ip) # Call L2 send_frame with the built packet and the next-hop ip
 
-    # called when need to send a frame to other peer
+    # called by L3 when need to send a packet out: do L2 dst mac lookup, build frame, and call peer's L2 receive_frame
     def send_frame(self, packet, next_hop_ip):
         log(self.name, "Layer 2", "Packet received from Network Layer")  # L3 of this host to L2 of this host
         dst_mac = self.mac_table[next_hop_ip] # look up the destination mac for the given next-hop ip using the host's mac table
