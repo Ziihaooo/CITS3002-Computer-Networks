@@ -4,8 +4,8 @@ Host runs L2/L3/L4, Router runs L2/L3 only.
 Shared log helper at the top so every layer prints in the same format.
 """
 
-from protocol import Frame, Packet
-from config import ETH_TYPE_IPV4, INITIAL_TTL, IP_PROTO_UDP
+from protocol import Frame, Packet, Segment, compute_checksum, verify_checksum
+from config import ETH_TYPE_IPV4, INITIAL_TTL, IP_PROTO_UDP, L4_TYPE_DATA, L4_TYPE_ACK, MAX_SEGMENT_DATA, DEFAULT_SRC_PORT, DEFAULT_DST_PORT
 
 # logging helper
 # prints one log line in the format the spec pdf expects
@@ -34,9 +34,12 @@ class Host:
         self.ip = ip                        # IP address (4 bytes), the host's own IP address  
         self.mac = mac                      # MAC address (6 bytes), the host's own MAC address       
         self.mac_table = mac_table          # each host has one mac table mapping next-hop ip -> mac, used by L2 to find the dst mac for a given next-hop ip
-        self.routing_table = routing_table  # each host has a routing table for L3 lookups, just for completeness and not used in this topology
+        self.routing_table = routing_table  # routing table used by L3 to find the next-hop ip and outgoing interface when sending
         self.peer = None                    # the other end (host or router) of the link, set by main.py when building the topology
         self.peer_iface = None              # which interface we arrive on at the peer
+        self.next_seq = 0                   # seq num to use to put on the next data segment this hst send (flips 0 -> 1 -> 0 ...)
+        self.last_ack_seq = None            # seq num of the last ACK this host received
+        self.expected_seq = 0               # seq num this host expect on the next incoming DATA segment
 
     # called when a frame is received from other peer and delivered from L2 to L3
     def receive_frame(self, frame, ingress_iface=None):
@@ -52,7 +55,48 @@ class Host:
         if packet.dst_ip == self.ip: # if dst ip is this host's own ip then it's local delivery
             log(self.name, "Layer 3", "Packet identified as local delivery") # log the local delivery decision
             log(self.name, "Layer 3", "Segment delivered to Transport Layer") # to L4 of this host
-            self.receive_segment(packet.payload) # Call L4 receive_segment with the packet's payload (the L4 segment)
+            self.receive_segment(packet.payload, packet.src_ip) # Call L4 receive_segment with the packet's payload, which is the L4 segment, and the sender's IP for the ACK return
+
+    # called by main.py to send a message to a destination host
+    # splits into 500-byte segments and uses alternating-bit (retransmit on wrong ACK)
+    def send_message(self, data, dst_ip):
+        log(self.name, "Layer 4", f"Data received from Application Layer. Data size={len(data)}") # from app of this host
+        # split the data into chunks of MAX_SEGMENT_DATA bytes (500)
+        chunks = [data[i: i + MAX_SEGMENT_DATA] for i in range(0, len(data), MAX_SEGMENT_DATA)]
+        for chunk in chunks: # send each chunk one at a time using alternating-bit rdt2.2
+            seq = self.next_seq # current seq num for this segment (0 or 1)
+            while True: # keep sending this chunk until we get the correct ACK back
+                seg = Segment(DEFAULT_SRC_PORT, DEFAULT_DST_PORT, 10 + len(chunk), 0, L4_TYPE_DATA, seq, chunk) # build the DATA segment, length = 10 header + chunk size
+                seg.checksum = compute_checksum(seg.src_port, seg.dst_port, seg.length, seg.seg_type, seg.seq_num, seg.data) # compute the checksum for the segment
+                log(self.name, "Layer 4", "Checksum computed") # log the checksum computation
+                log(self.name, "Layer 4", f"Segment created by adding transport layer header (DATA, seq={seq}) (encapsulation)") # log the DATA segment creation
+                log(self.name, "Layer 4", "Segment sent to Network Layer") # to L3 of this host
+                self.send_packet(seg, dst_ip) # send the segment, by the time this returns the ACK has been processed (synchronous)
+                if self.last_ack_seq == seq: # correct ACK received, this chunk is done
+                    break
+                log(self.name, "Layer 4", "Segment retransmitted due to incorrect ACK") # log the retransmit (spec assumes no loss so this never fires)
+            self.next_seq = 1 - seq # flip seq for the next chunk
+
+    # called when a segment is received from L3 and delivered to L4, with the sender's IP for ACK return
+    def receive_segment(self, segment, src_ip):
+        log(self.name, "Layer 4", "Segment received from Network Layer") # L3 of this host to L4 of this host
+        if not verify_checksum(segment): # recompute and compare to the segment's stored checksum
+            log(self.name, "Layer 4", "Segment discarded due to checksum error") # log the discard (spec assumes no corruption so this never fires)
+            return # corrupted segment, discard it and don't send an ACK
+        log(self.name, "Layer 4", "Checksum verified") # log the successful checksum verification
+        if segment.seg_type == L4_TYPE_DATA: # incoming DATA segment from peer
+            if segment.seq_num == self.expected_seq: # fresh DATA matching the expected seq, accept and deliver
+                log(self.name, "Layer 4", f"DATA segment delivered to Application Layer. Data size={len(segment.data)}") # to app of this host
+                self.expected_seq = 1 - self.expected_seq # flip expected_seq for the next incoming DATA
+            # build the ACK with the same seq we just received, so fresh data gets a new ack and duplicate data gets the old ack again
+            ack = Segment(segment.dst_port, segment.src_port, 10, 0, L4_TYPE_ACK, segment.seq_num, b"") # 10 = L4 header size, empty data for ACK
+            ack.checksum = compute_checksum(ack.src_port, ack.dst_port, ack.length, ack.seg_type, ack.seq_num, ack.data) # compute the checksum for the ACK
+            log(self.name, "Layer 4", f"Segment created by adding transport layer header (ACK, seq={ack.seq_num})") # log the ACK creation
+            log(self.name, "Layer 4", "Segment sent to Network Layer") # to L3 of this host
+            self.send_packet(ack, src_ip) # send the ACK back to the original sender
+        elif segment.seg_type == L4_TYPE_ACK: # incoming ACK segment from peer
+            log(self.name, "Layer 4", f"ACK received: seq={segment.seq_num}") # log the ACK with its seq
+            self.last_ack_seq = segment.seq_num # remember the ACK seq so the sender can check it after send_packet returns
 
     # called by L4 to send a segment out: wrap in a packet, do routing, hand to L2
     def send_packet(self, segment, dst_ip):
@@ -99,7 +143,7 @@ class Router:
         self.learning_table[frame.src_mac] = ingress_iface # learn the source mac and which interface it came from (dynamic mac learning)
         log(self.name, "Layer 2", f"Source MAC learned: {frame.src_mac} on {ingress_iface}") # log the learned source mac
         log(self.name, "Layer 2", "Packet delivered to Network Layer") # to L3 of this router
-        self.receive_packet(frame.payload, ingress_iface) # Call L3 receive_packet with the frame's payload and the ingress interface
+        self.receive_packet(frame.payload, ingress_iface) # Call L3 receive_packet with the frame's payload, which is the L3 packet, and the ingress interface
 
     # called when a packet is received from L2 and delivered to L3, with the ingress interface specified for routing decisions
     def receive_packet(self, packet, ingress_iface):
