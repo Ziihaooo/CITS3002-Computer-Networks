@@ -5,7 +5,7 @@ Shared log helper at the top so every layer prints in the same format.
 """
 
 from protocol import Frame, Packet, Segment, compute_checksum, verify_checksum
-from config import ETH_TYPE_IPV4, INITIAL_TTL, IP_PROTO_UDP, L4_TYPE_DATA, L4_TYPE_ACK
+from config import ETH_TYPE_IPV4, INITIAL_TTL, IP_PROTO_UDP, L4_TYPE_DATA, L4_TYPE_ACK, MAX_SEGMENT_DATA, DEFAULT_SRC_PORT, DEFAULT_DST_PORT
 
 # logging helper
 # prints one log line in the format the spec pdf expects
@@ -56,6 +56,26 @@ class Host:
             log(self.name, "Layer 3", "Packet identified as local delivery") # log the local delivery decision
             log(self.name, "Layer 3", "Segment delivered to Transport Layer") # to L4 of this host
             self.receive_segment(packet.payload, packet.src_ip) # Call L4 receive_segment with the packet's payload, which is the L4 segment, and the sender's IP for the ACK return
+
+    # called by main.py to send a message to a destination host
+    # splits into 500-byte segments and uses alternating-bit (retransmit on wrong ACK)
+    def send_message(self, data, dst_ip):
+        log(self.name, "Layer 4", f"Data received from Application Layer. Data size={len(data)}") # from app of this host
+        # split the data into chunks of MAX_SEGMENT_DATA bytes (500)
+        chunks = [data[i: i + MAX_SEGMENT_DATA] for i in range(0, len(data), MAX_SEGMENT_DATA)]
+        for chunk in chunks: # send each chunk one at a time using alternating-bit rdt2.2
+            seq = self.next_seq # current seq num for this segment (0 or 1)
+            while True: # keep sending this chunk until we get the correct ACK back
+                seg = Segment(DEFAULT_SRC_PORT, DEFAULT_DST_PORT, 10 + len(chunk), 0, L4_TYPE_DATA, seq, chunk) # build the DATA segment, length = 10 header + chunk size
+                seg.checksum = compute_checksum(seg.src_port, seg.dst_port, seg.length, seg.seg_type, seg.seq_num, seg.data) # compute the checksum for the segment
+                log(self.name, "Layer 4", "Checksum computed") # log the checksum computation
+                log(self.name, "Layer 4", f"Segment created by adding transport layer header (DATA, seq={seq}) (encapsulation)") # log the DATA segment creation
+                log(self.name, "Layer 4", "Segment sent to Network Layer") # to L3 of this host
+                self.send_packet(seg, dst_ip) # send the segment, by the time this returns the ACK has been processed (synchronous)
+                if self.last_ack_seq == seq: # correct ACK received, this chunk is done
+                    break
+                log(self.name, "Layer 4", "Segment retransmitted due to incorrect ACK") # log the retransmit (spec assumes no loss so this never fires)
+            self.next_seq = 1 - seq # flip seq for the next chunk
 
     # called when a segment is received from L3 and delivered to L4, with the sender's IP for ACK return
     def receive_segment(self, segment, src_ip):
