@@ -7,24 +7,31 @@ Shared log helper at the top so every layer prints in the same format.
 from protocol import Frame
 from config import ETH_TYPE_IPV4
 
-# ---------------------------------------------------------------------------
 # logging helper
-# ---------------------------------------------------------------------------
-
 # prints one log line in the format the spec pdf expects
 def log(device, layer, message):
     print(f"{device}: {layer}: {message}")
-
 
 # blank line between sections so the output is easier to read
 def log_blank():
     print()
 
+# routing helpers (used by L3 on hosts and routers)
+# check if ip belongs to the given network 
+# simple function because we only have /24 networks in this topologys
+# so just compare the first 3 bytes of the ip and network
+def ip_in_network(ip, network):
+    return ip.rsplit(".", 1)[0] == network.rsplit(".", 1)[0]
 
-# ---------------------------------------------------------------------------
+
+# walk the routing table and return (next_hop_ip, out_iface) for dst_ip
+def routing_lookup(routing_table, dst_ip):
+    for network, _prefix, next_hop, iface in routing_table: 
+        if ip_in_network(dst_ip, network): # if the dst_ip belongs to this network
+            return (next_hop if next_hop else dst_ip, iface) # return the next_hop_ip (or dst_ip itself if next_hop is None, meaning it's directly connected) and the outgoing interface
+    return (None, None)  # no route found
+
 # Host
-# ---------------------------------------------------------------------------
-
 class Host:
     def __init__(self, name, ip, mac, mac_table, routing_table):
         self.name = name                    # for logging only, e.g. "Host A"
@@ -46,17 +53,13 @@ class Host:
     def send_frame(self, packet, next_hop_ip):
         log(self.name, "Layer 2", "Packet received from Network Layer")  # L3 of this host to L2 of this host
         dst_mac = self.mac_table[next_hop_ip] # look up the destination mac for the given next-hop ip using the host's mac table
-        log(self.name, "Layer 2", f"Destination MAC lookup for next-hop IP ({next_hop_ip}) -> {dst_mac}") # log the result of the mac table lookup
+        log(self.name, "Layer 2", f"Destination MAC lookup for next-hop IP ({next_hop_ip}) → {dst_mac}") # log the result of the mac table lookup
         frame = Frame(dst_mac, self.mac, ETH_TYPE_IPV4, packet) # create a frame with the given packet as payload, and the looked up dst mac and this host's mac as src mac
         log(self.name, "Layer 2", f"Frame created: SRC_MAC={self.mac}, DST_MAC={dst_mac}") # log the creation of the frame with src and dst mac
         log(self.name, "Layer 2", "Frame sent") # to L2 of peer
         self.peer.receive_frame(frame, ingress_iface=self.peer_iface) # Call the L2 of the peer with the created frame, and specify which interface we arrive on at the peer
 
-
-# ---------------------------------------------------------------------------
 # Router
-# ---------------------------------------------------------------------------
-
 class Router:
     def __init__(self, name, if1, if2, routing_table):
         self.name = name                    # for logging, e.g. "Router R1"
@@ -84,7 +87,7 @@ class Router:
         iface = self.interfaces[out_iface] # look up the interface info using the out_iface name
         log(self.name, "Layer 2", "Packet received from Network Layer") # L3 of this router to L2 of this router
         dst_mac = iface["mac_table"][next_hop_ip] # look up the dst mac for the given next-hop ip using this interface's mac table
-        log(self.name, "Layer 2", f"Destination MAC lookup for next-hop IP ({next_hop_ip}) -> {dst_mac}") # log the result of the mac table lookup
+        log(self.name, "Layer 2", f"Destination MAC lookup for next-hop IP ({next_hop_ip}) → {dst_mac}") # log the result of the mac table lookup
         frame = Frame(dst_mac, iface["mac"], ETH_TYPE_IPV4, packet) # create a frame with the given packet as payload, looked up dst mac, and this interface's mac as src mac
         log(self.name, "Layer 2", f"Frame created: SRC_MAC={iface['mac']}, DST_MAC={dst_mac}") # log the creation of the frame with src and dst mac
         log(self.name, "Layer 2", f"Frame forwarded on {out_iface}") # to L2 of peer via the specified outgoing interface
