@@ -48,10 +48,10 @@ class Segment:
 
 # simple 16-bit checksum over all the segment fields and data bytes (kept to 2 bytes with & 0xFFFF)
 def compute_checksum(src_port, dst_port, length, seg_type, seq_num, data):
-    return (src_port + dst_port + length + seg_type + seq_num + sum(data)) & 0xFFFF
+    return (src_port + dst_port + length + seg_type + seq_num + sum(data)) & 0xFFFF # simple checksum: sum of all fields and data bytes, modulo 2^16 to fit in 2 bytes
 
 # recompute and compare against the value stored in the segment header
 def verify_checksum(segment):
     expected = compute_checksum(segment.src_port, segment.dst_port, segment.length,
                                 segment.seg_type, segment.seq_num, segment.data)
-    return expected == segment.checksum
+    return expected == segment.checksum # recompute the checksum and compare to the value in the segment header

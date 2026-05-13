@@ -37,6 +37,9 @@ class Host:
         self.routing_table = routing_table  # each host has a routing table for L3 lookups, just for completeness and not used in this topology
         self.peer = None                    # the other end (host or router) of the link, set by main.py when building the topology
         self.peer_iface = None              # which interface we arrive on at the peer
+        self.next_seq = 0                   # seq num to use to put on the next data segment this hst send (flips 0 -> 1 -> 0 ...)
+        self.last_ack_seq = None            # seq num of the last ACK this host received
+        self.expected_seq = 0               # seq num this host expect on the next incoming DATA segment
 
     # called when a frame is received from other peer and delivered from L2 to L3
     def receive_frame(self, frame, ingress_iface=None):
