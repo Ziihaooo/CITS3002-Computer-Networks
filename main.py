@@ -1,14 +1,6 @@
-"""Mini Internet Protocol Stack Simulator — entry point.
-
-Usage:
-    python main.py <message_size_in_bytes>
-
-Example:
-    python main.py 100
-
-Builds Host A, Router R1, and Host B according to the topology defined
-in config.py, then sends a message of the given size from Host A to
-Host B using the simulated L2/L3/L4 stack.
+"""Entry point for the simulator.
+Run python main.py with the size in bytes as an argument.
+Builds Host A, R1, Host B from config.py and sends a message from A to B.
 """
 
 import sys
@@ -21,7 +13,7 @@ from config import (
 )
 from devices import Host, Router
 
-# read the message size from the command line, e.g. "python main.py 100"
+# read the message size from the command line argument
 size = int(sys.argv[1])
 
 # build the three devices from the topology config
@@ -34,17 +26,18 @@ r1 = Router(
     routing_table=R1_ROUTING_TABLE,
 )
 
-# wire the peers (the "cables" between devices)
-# Host A <-> R1 Interface 1
+# wire the peers so each device knows who is on the other end of the link
+# Host A to R1 Interface 1
 host_a.peer = r1
 host_a.peer_iface = R1_IFACE_1
 r1.interfaces[R1_IFACE_1]["peer"] = host_a
 
-# Host B <-> R1 Interface 2
+# Host B to R1 Interface 2
 host_b.peer = r1
 host_b.peer_iface = R1_IFACE_2
 r1.interfaces[R1_IFACE_2]["peer"] = host_b
 
-# generate dummy bytes of the requested size and kick off the send from Host A to Host B
+# generate dummy bytes of the requested size
 data = b"X" * size
+# kick off the send from Host A to Host B
 host_a.send_message(data, HOST_B_IP)
